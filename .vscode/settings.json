@@ -1,0 +1,7 @@
+{
+    "cSpell.words": [
+        "bbolt"
+    ],
+    "go.testTimeout": "100s",
+    "makefile.configureOnOpen": false
+}
