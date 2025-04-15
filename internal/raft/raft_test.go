@@ -1,0 +1,85 @@
+package raft
+
+import (
+	"encoding/json"
+	"testing"
+	"time"
+)
+
+func TestRaftNode(t *testing.T) {
+	t.Log("[TEST] Starting RaftNode test")
+	tmpDir := t.TempDir()
+	config := NewNodeConfig("test1", "127.0.0.1:9001", tmpDir)
+	config.Bootstrap = true
+	config.InMemory = true
+	t.Logf("[TEST] Created config: %+v", config)
+
+	t.Log("[TEST] Creating new Raft node...")
+	node, err := NewRaftNode(config)
+	if err != nil {
+		t.Fatalf("[TEST] Failed to create node: %v", err)
+	}
+	defer func() {
+		t.Log("[TEST] Shutting down node")
+		node.Shutdown()
+	}()
+
+	// 초기 클러스터 구성을 확인하는 코드 추가
+	confFuture := node.raft.GetConfiguration()
+	if err := confFuture.Error(); err != nil {
+		t.Fatalf("[TEST] Failed to get configuration: %v", err)
+	}
+	t.Logf("[TEST] Initial Raft configuration: %+v", confFuture.Configuration())
+
+	t.Log("[TEST] Waiting for leadership...")
+	waitTime := 2 * time.Second
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.After(waitTime)
+	leaderElected := false
+	for {
+		select {
+		case <-timeout:
+			t.Fatalf("[TEST] Leadership timeout after %v", waitTime)
+		case <-ticker.C:
+			if node.IsLeader() {
+				t.Log("[TEST] Node became leader")
+				leaderElected = true
+			}
+		}
+		if leaderElected {
+			break
+		}
+	}
+
+	state := node.raft.State()
+	leader := node.Leader()
+	t.Logf("[TEST] Current state: %v, Leader: %v", state, leader)
+
+	if !node.IsLeader() {
+		t.Fatalf("[TEST] Node should be leader in single-node configuration, current state: %v", state)
+	}
+	t.Log("[TEST] Node is leader")
+
+	t.Run("Apply Command", func(t *testing.T) {
+		t.Log("[TEST] Starting Apply Command test")
+		cmd := Command{
+			Type:  "SET",
+			Key:   "test-key",
+			Value: []byte("test-value"),
+		}
+		t.Logf("[TEST] Created command: %+v", cmd)
+
+		data, err := json.Marshal(cmd)
+		if err != nil {
+			t.Fatalf("[TEST] Failed to marshal command: %v", err)
+		}
+
+		t.Log("[TEST] Applying command...")
+		err = node.Apply(data, 500*time.Millisecond)
+		if err != nil {
+			t.Errorf("[TEST] Failed to apply command: %v", err)
+		}
+		t.Log("[TEST] Command applied successfully")
+	})
+}

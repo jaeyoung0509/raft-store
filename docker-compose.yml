@@ -1,0 +1,81 @@
+version: "3"
+
+services:
+  node1:
+    hostname: node1
+    build: .
+    ports:
+      - "33001:8080"
+      - "34001:9090"
+      - "12001:12000"
+    user: nobody
+    env_file:
+      - .env
+    environment:
+      NODE_ID: node1
+      RAFT_ADDR: node1:12000
+      BOOTSTRAP: "true"
+    volumes:
+      - "/tmp/raft-data/node1:/data"
+    networks:
+      - raft-net
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[s]erver' || exit 1"]
+      interval: 1s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  node2:
+    build: .
+    hostname: node2
+    ports:
+      - "33002:8080"
+      - "34002:9090"
+      - "12002:12000"
+    user: nobody
+    env_file:
+      - .env
+    environment:
+      NODE_ID: node2
+      RAFT_ADDR: node2:12000
+      BOOTSTRAP: "false"
+    volumes:
+      - "/tmp/raft-data/node2:/data"
+    networks:
+      - raft-net
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[s]erver' || exit 1"]
+      interval: 1s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  node3:
+    build: .
+    hostname: node3
+    ports:
+      - "33003:8080"
+      - "34003:9090"
+      - "12003:12000"
+    user: nobody
+    env_file:
+      - .env
+    environment:
+      NODE_ID: node3
+      RAFT_ADDR: node3:12000
+      BOOTSTRAP: "false"
+    volumes:
+      - "/tmp/raft-data/node3:/data"
+    networks:
+      - raft-net
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[s]erver' || exit 1"]
+      interval: 1s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+networks:
+  raft-net:
+    driver: bridge

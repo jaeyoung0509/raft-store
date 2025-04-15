@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package api; 
+
+option go_package = "github.com/jaeyoung0509/go-store/internal/api/pb;pb";
+
+service RaftService {
+    rpc GetStatus (Empty) returns (StatusResponse);
+    rpc AddPeer (PeerRequest) returns (PeerResponse);
+    rpc RemovePeer (PeerID) returns (PeerResponse);
+    rpc GetCluster (Empty) returns (ClusterConfig);
+    rpc ApplyCommand (CommandRequest) returns (CommandResponse);
+
+}
+
+
+message Empty {}
+
+
+message PeerRequest {
+    string id = 1;
+    string addr = 2;
+}
+
+message PeerID {
+    string id = 1;
+}
+
+message PeerResponse {
+    string message = 1;
+}
+
+message StatusResponse {
+    bool is_leader = 1;
+    string leader_id = 2;
+}
+
+message ClusterConfig{
+    repeated string server_ids = 1 ;
+}
+
+message CommandRequest {
+    string type = 1;
+    string key = 2;
+    string value = 3; 
+}
+
+
+message CommandResponse {
+    string result = 1;
+}
