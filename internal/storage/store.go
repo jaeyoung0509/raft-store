@@ -5,27 +5,27 @@ import (
 	"sync"
 )
 
-// Store represents the key-value store interface
+// Store defines the interface for key-value storage operations
 type Store interface {
 	Get(key string) (string, error)
 	Put(key, value string) error
 	Delete(key string) error
 }
 
-// MemoryStore is an in-memory implementation of the Store interface
+// MemoryStore provides an in-memory implementation of the Store interface
 type MemoryStore struct {
 	mu    sync.RWMutex
 	store map[string]string
 }
 
-// NewStore creates a new memory store
+// NewStore creates a new instance of MemoryStore
 func NewStore() *MemoryStore {
 	return &MemoryStore{
 		store: make(map[string]string),
 	}
 }
 
-// Get retrieves a value for a given key
+// Get retrieves the value associated with the given key
 func (s *MemoryStore) Get(key string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -36,7 +36,7 @@ func (s *MemoryStore) Get(key string) (string, error) {
 	return "", nil
 }
 
-// Put stores a key-value pair
+// Put stores a key-value pair in the store
 func (s *MemoryStore) Put(key, value string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -45,7 +45,7 @@ func (s *MemoryStore) Put(key, value string) error {
 	return nil
 }
 
-// Delete removes a key-value pair
+// Delete removes a key-value pair from the store
 func (s *MemoryStore) Delete(key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -54,14 +54,14 @@ func (s *MemoryStore) Delete(key string) error {
 	return nil
 }
 
-// Command represents a storage operation
+// Command represents a storage operation to be processed
 type Command struct {
-	Op    string `json:"op"`
-	Key   string `json:"key"`
-	Value string `json:"value,omitempty"`
+	Op    string `json:"op"`    // Operation type (put/delete)
+	Key   string `json:"key"`   // Key to operate on
+	Value string `json:"value"` // Value for put operations
 }
 
-// ApplyCommand applies a command to the store
+// ApplyCommand processes a command on the store
 func (s *MemoryStore) ApplyCommand(cmd Command) error {
 	switch cmd.Op {
 	case "put":
@@ -73,12 +73,12 @@ func (s *MemoryStore) ApplyCommand(cmd Command) error {
 	}
 }
 
-// EncodeCommand encodes a command to JSON
+// EncodeCommand serializes a command to JSON format
 func EncodeCommand(cmd Command) ([]byte, error) {
 	return json.Marshal(cmd)
 }
 
-// DecodeCommand decodes a command from JSON
+// DecodeCommand deserializes a command from JSON format
 func DecodeCommand(data []byte) (Command, error) {
 	var cmd Command
 	err := json.Unmarshal(data, &cmd)

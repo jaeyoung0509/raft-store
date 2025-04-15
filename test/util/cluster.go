@@ -1,3 +1,4 @@
+// Package util provides testing utilities for Raft cluster tests
 package util
 
 import (
@@ -18,33 +19,39 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/compose"
 )
 
+// TestMode defines the type of test being run
 type TestMode int
 
 const (
+	// ModeIntegration indicates integration test mode
 	ModeIntegration TestMode = iota
+	// ModeE2E indicates end-to-end test mode
 	ModeE2E
 )
 
+// TestCluster represents a test Raft cluster environment
 type TestCluster struct {
-	ComposeStack compose.ComposeStack
-	Nodes        map[string]string
-	Mode         TestMode
+	ComposeStack compose.ComposeStack // Docker compose stack
+	Nodes        map[string]string    // Node ID to address mapping
+	Mode         TestMode             // Test execution mode
 }
 
+// SetupTestCluster initializes a test Raft cluster using Docker Compose
 func SetupTestCluster(t *testing.T, mode TestMode) (*TestCluster, error) {
 	t.Helper()
+	// Setup data directory
 	os.Setenv("RAFT_DATA_DIR", "/tmp/raft-data")
 	t.Log("RAFT_DATA_DIR =", os.Getenv("RAFT_DATA_DIR"))
 	err := os.RemoveAll(os.Getenv("RAFT_DATA_DIR"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete: %w", err)
+		return nil, fmt.Errorf("failed to delete data directory: %w", err)
 	}
 
-	// 먼저 기존 컨테이너들을 정리
+	// Clean up existing containers
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(
 		client.FromEnv,
-		client.WithVersion("1.43"), // Docker API 버전을 명시적으로 설정
+		client.WithVersion("1.43"), // Docker API version explicitly set
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create docker client: %v", err)
@@ -57,7 +64,7 @@ func SetupTestCluster(t *testing.T, mode TestMode) (*TestCluster, error) {
 	}
 
 	for _, container := range containers {
-		// 테스트 관련 컨테이너만 정리
+		// Remove only test-related containers
 		if strings.Contains(container.Image, "go-store") {
 			if err := cli.ContainerRemove(ctx, container.ID, types.ContainerRemoveOptions{
 				Force: true,
@@ -145,18 +152,6 @@ func SetupTestCluster(t *testing.T, mode TestMode) (*TestCluster, error) {
 			t.Fatalf("Failed to get host IP for container %s:%v", service, err)
 		}
 		nodeAddr = fmt.Sprintf("%s:%s", hostIp, mappedPort.Port())
-		// if mode == ModeE2E {
-		// 	// 컨테이너 내부 네트워크 내에서 접근 - 서비스 이름이 DNS로 동작함.
-		// 	nodeAddr = fmt.Sprintf("%s:12000", service)
-		// } else {
-		// 	// Integration: 호스트에서 외부로 접근할 때, 매핑된 gRPC 포트를 사용
-		// 	mappedPort, err := container.MappedPort(ctx, "9090")
-		// 	if err != nil {
-		// 		t.Fatalf("[WARN] Failed to get mapped port for service %s: %v", service, err)
-		// 		continue
-		// 	}
-		// 	nodeAddr = fmt.Sprintf("localhost:%s", mappedPort.Port())
-		// }
 
 		nodes[service] = nodeAddr
 		t.Logf("[DEBUG] Added node %s with address %s", service, nodeAddr)
@@ -169,6 +164,7 @@ func SetupTestCluster(t *testing.T, mode TestMode) (*TestCluster, error) {
 	}, nil
 }
 
+// getContainerLogs retrieves logs from a test container
 func getContainerLogs(ctx context.Context, container testcontainers.Container) string {
 	logs, err := container.Logs(ctx)
 	if err != nil {
@@ -181,6 +177,7 @@ func getContainerLogs(ctx context.Context, container testcontainers.Container) s
 	return string(logBytes)
 }
 
+// Teardown cleans up the test cluster environment
 func (c *TestCluster) Teardown(t *testing.T) {
 	t.Helper()
 	t.Log("[TEST] Tearing down the cluster")

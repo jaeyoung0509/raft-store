@@ -8,13 +8,13 @@ import (
 	"github.com/jaeyoung0509/go-store/internal/raft"
 )
 
-// Server represents the HTTP API server
+// Server implements the HTTP API interface for Raft operations
 type Server struct {
 	raftNode raft.Node
 	addr     string
 }
 
-// NewServer creates a new API server
+// NewServer creates a new HTTP API server instance
 func NewServer(node raft.Node, addr string) *Server {
 	return &Server{
 		raftNode: node,
@@ -22,18 +22,19 @@ func NewServer(node raft.Node, addr string) *Server {
 	}
 }
 
-// Start starts the HTTP server
+// Start initializes and starts the HTTP server
 func (s *Server) Start() error {
 	http.HandleFunc("/key", s.handleKey)
 	http.HandleFunc("/cluster", s.handleCluster)
 	return http.ListenAndServe(s.addr, nil)
 }
 
-// Stop stops the HTTP server
+// Stop gracefully shuts down the HTTP server
 func (s *Server) Stop() error {
 	return nil // TODO: Implement graceful shutdown
 }
 
+// handleKey handles all key-value operations (GET/PUT/DELETE)
 func (s *Server) handleKey(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -47,6 +48,7 @@ func (s *Server) handleKey(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleGet processes GET requests for key retrieval
 func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 	if key == "" {
@@ -74,6 +76,7 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handlePut processes PUT requests for key-value updates
 func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
 	var cmd raft.Command
 	if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
@@ -98,6 +101,7 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleDelete processes DELETE requests for key removal
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 	if key == "" {
@@ -125,6 +129,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleCluster handles all cluster management operations
 func (s *Server) handleCluster(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -138,6 +143,7 @@ func (s *Server) handleCluster(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleGetCluster retrieves current cluster configuration
 func (s *Server) handleGetCluster(w http.ResponseWriter, _ *http.Request) {
 	config, err := s.raftNode.GetConfiguration()
 	if err != nil {
@@ -149,6 +155,7 @@ func (s *Server) handleGetCluster(w http.ResponseWriter, _ *http.Request) {
 	json.NewEncoder(w).Encode(config)
 }
 
+// handleAddPeer processes requests to add new cluster members
 func (s *Server) handleAddPeer(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ID   string `json:"id"`
@@ -168,6 +175,7 @@ func (s *Server) handleAddPeer(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleRemovePeer processes requests to remove cluster members
 func (s *Server) handleRemovePeer(w http.ResponseWriter, r *http.Request) {
 	peerID := r.URL.Query().Get("id")
 	if peerID == "" {
