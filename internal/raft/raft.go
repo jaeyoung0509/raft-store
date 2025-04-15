@@ -11,17 +11,17 @@ import (
 	"github.com/hashicorp/raft"
 )
 
-// RaftNode implements the Node interface
+// RaftNode represents a node in the Raft cluster
 type RaftNode struct {
 	raft   *raft.Raft
 	config *NodeConfig
 }
 
-// NewRaftNode creates a new Raft node
+// NewRaftNode creates and initializes a new Raft node with the given configuration
 func NewRaftNode(config *NodeConfig) (*RaftNode, error) {
 	fmt.Printf("[DEBUG] Starting NewRaftNode with config: %+v\n", config)
 
-	// Create Raft Directory
+	// Create and initialize Raft directory
 	raftDir := filepath.Join(config.DataDir, config.ID)
 	fmt.Printf("[DEBUG] Creating raft directory: %s\n", raftDir)
 	if err := os.MkdirAll(raftDir, 0700); err != nil {
@@ -166,46 +166,46 @@ func NewRaftNode(config *NodeConfig) (*RaftNode, error) {
 	return node, nil
 }
 
-// Start starts the Raft node
+// Start initializes and starts the Raft node
 func (n *RaftNode) Start() error {
 	// No need to bootstrap here anymore - it's done in NewRaftNode
 	return nil
 }
 
-// Stop stops the Raft node
+// Stop gracefully stops the Raft node
 func (n *RaftNode) Stop() error {
 	return n.raft.Shutdown().Error()
 }
 
-// IsLeader returns true if this node is the current leader
+// IsLeader checks if this node is the current cluster leader
 func (n *RaftNode) IsLeader() bool {
 	return n.raft.State() == raft.Leader
 }
 
-// Leader returns the current leader's address
+// Leader returns the address of the current leader node
 func (n *RaftNode) Leader() string {
 	return string(n.raft.Leader())
 }
 
-// AddPeer adds a new peer to the cluster
+// AddPeer adds a new voting member to the Raft cluster
 func (n *RaftNode) AddPeer(peerID string, addr string) error {
 	f := n.raft.AddVoter(raft.ServerID(peerID), raft.ServerAddress(addr), 0, 0)
 	return f.Error()
 }
 
-// RemovePeer removes a peer from the cluster
+// RemovePeer removes a member from the Raft cluster
 func (n *RaftNode) RemovePeer(peerID string) error {
 	f := n.raft.RemoveServer(raft.ServerID(peerID), 0, 0)
 	return f.Error()
 }
 
-// Apply applies a command to the cluster
+// Apply submits a new command to be applied to the cluster state machine
 func (n *RaftNode) Apply(data []byte, timeout time.Duration) error {
 	f := n.raft.Apply(data, timeout)
 	return f.Error()
 }
 
-// GetConfiguration returns the current cluster configuration
+// GetConfiguration retrieves the current cluster configuration
 func (n *RaftNode) GetConfiguration() (*Configuration, error) {
 	future := n.raft.GetConfiguration()
 	if err := future.Error(); err != nil {
@@ -227,19 +227,22 @@ func (n *RaftNode) GetConfiguration() (*Configuration, error) {
 	return config, nil
 }
 
-// Shutdown gracefully shuts down the node
+// Shutdown performs a graceful shutdown of the node
 func (n *RaftNode) Shutdown() error {
 	return n.raft.Shutdown().Error()
 }
 
+// GetID returns the node's unique identifier
 func (n *RaftNode) GetID() string {
 	return n.config.ID
 }
 
+// GetAddr returns the node's network address
 func (n *RaftNode) GetAddr() string {
 	return n.config.Addr
 }
 
+// GetState returns the current Raft state of the node
 func (n *RaftNode) GetState() raft.RaftState {
 	return n.raft.State()
 }

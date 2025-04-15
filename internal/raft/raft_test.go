@@ -7,31 +7,35 @@ import (
 )
 
 func TestRaftNode(t *testing.T) {
-	t.Log("[TEST] Starting RaftNode test")
+	t.Log("[TEST] Starting RaftNode unit tests")
 	tmpDir := t.TempDir()
+
+	// Create test configuration
 	config := NewNodeConfig("test1", "127.0.0.1:9001", tmpDir)
 	config.Bootstrap = true
 	config.InMemory = true
-	t.Logf("[TEST] Created config: %+v", config)
+	t.Logf("[TEST] Created test configuration: %+v", config)
 
-	t.Log("[TEST] Creating new Raft node...")
+	// Initialize new Raft node
+	t.Log("[TEST] Creating new test Raft node")
 	node, err := NewRaftNode(config)
 	if err != nil {
 		t.Fatalf("[TEST] Failed to create node: %v", err)
 	}
 	defer func() {
-		t.Log("[TEST] Shutting down node")
+		t.Log("[TEST] Performing test cleanup")
 		node.Shutdown()
 	}()
 
-	// 초기 클러스터 구성을 확인하는 코드 추가
+	// Verify initial cluster configuration
 	confFuture := node.raft.GetConfiguration()
 	if err := confFuture.Error(); err != nil {
-		t.Fatalf("[TEST] Failed to get configuration: %v", err)
+		t.Fatalf("[TEST] Failed to get initial configuration: %v", err)
 	}
 	t.Logf("[TEST] Initial Raft configuration: %+v", confFuture.Configuration())
 
-	t.Log("[TEST] Waiting for leadership...")
+	// Wait for leader election
+	t.Log("[TEST] Waiting for leader election")
 	waitTime := 2 * time.Second
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
@@ -62,13 +66,13 @@ func TestRaftNode(t *testing.T) {
 	t.Log("[TEST] Node is leader")
 
 	t.Run("Apply Command", func(t *testing.T) {
-		t.Log("[TEST] Starting Apply Command test")
+		t.Log("[TEST] Testing command application")
 		cmd := Command{
 			Type:  "SET",
 			Key:   "test-key",
 			Value: []byte("test-value"),
 		}
-		t.Logf("[TEST] Created command: %+v", cmd)
+		t.Logf("[TEST] Created test command: %+v", cmd)
 
 		data, err := json.Marshal(cmd)
 		if err != nil {
