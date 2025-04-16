@@ -9,6 +9,8 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
+	logger "github.com/jaeyoung0509/go-store/pkg/log"
+	"go.uber.org/zap"
 )
 
 // RaftNode represents a node in the Raft cluster
@@ -19,11 +21,13 @@ type RaftNode struct {
 
 // NewRaftNode creates and initializes a new Raft node with the given configuration
 func NewRaftNode(config *NodeConfig) (*RaftNode, error) {
-	fmt.Printf("[DEBUG] Starting NewRaftNode with config: %+v\n", config)
+	logger.L().Debug(" Starting NewRaftNode with config",
+		zap.Any("config", config),
+	)
 
 	// Create and initialize Raft directory
 	raftDir := filepath.Join(config.DataDir, config.ID)
-	fmt.Printf("[DEBUG] Creating raft directory: %s\n", raftDir)
+	logger.L().Debug(" Creating raft directory", zap.String("directory", raftDir))
 	if err := os.MkdirAll(raftDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create raft directory: %v", err)
 	}
@@ -47,12 +51,12 @@ func NewRaftNode(config *NodeConfig) (*RaftNode, error) {
 	// Create transport layer
 	var transport raft.Transport
 	if config.InMemory {
-		fmt.Printf("[DEBUG] Setting up InmemTransport\n")
+		logger.L().Debug(" Setting up InmemTransport\n")
 		addr, memTransport := raft.NewInmemTransportWithTimeout(
 			raft.ServerAddress(config.Addr),
 			150*time.Microsecond, // 타임아웃 증가
 		)
-		fmt.Printf("[DEBUG] Created InmemTransport with addr: %s\n", addr)
+		logger.L().Debug(" Created InmemTransport with addr", zap.String("addr", string(addr)))
 		config.Addr = string(addr)
 		transport = memTransport
 
@@ -78,7 +82,7 @@ func NewRaftNode(config *NodeConfig) (*RaftNode, error) {
 		}
 	}
 
-	fmt.Printf("[DEBUG] Creating Raft configuration\n")
+	logger.L().Debug(" Creating Raft configuration\n")
 	raftConfig := raft.DefaultConfig()
 	raftConfig.LocalID = raft.ServerID(config.ID)
 
@@ -97,19 +101,19 @@ func NewRaftNode(config *NodeConfig) (*RaftNode, error) {
 		Level:  hclog.Debug,
 	})
 
-	fmt.Printf("[DEBUG] Updated Raft configuration: %+v\n", raftConfig)
+	logger.L().Debug(" Updated Raft configuration", zap.Any("config", raftConfig))
 
 	// Bootstrap the cluster if needed
 	if config.Bootstrap {
-		fmt.Printf("[DEBUG] Checking for existing state\n")
+		logger.L().Debug(" Checking for existing state")
 		hasState, err := raft.HasExistingState(boltStore, boltStore, snapshotStore)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check for existing state: %v", err)
 		}
-		fmt.Printf("[DEBUG] Has existing state: %v\n", hasState)
+		logger.L().Debug(" Has existing state", zap.Bool("state", hasState))
 
 		if !hasState {
-			fmt.Printf("[DEBUG] No existing state, bootstrapping cluster\n")
+			logger.L().Debug(" No existing state, bootstrapping cluster")
 			configuration := raft.Configuration{
 				Servers: []raft.Server{
 					{
@@ -119,12 +123,12 @@ func NewRaftNode(config *NodeConfig) (*RaftNode, error) {
 					},
 				},
 			}
-			fmt.Printf("[DEBUG] Bootstrap configuration: %+v\n", configuration)
+			logger.L().Debug(" Bootstrap configuration", zap.Any("configuration", configuration))
 			if err := raft.BootstrapCluster(raftConfig, boltStore, boltStore, snapshotStore, transport, configuration); err != nil {
 				if err != raft.ErrCantBootstrap {
 					return nil, fmt.Errorf("failed to bootstrap cluster: %v", err)
 				}
-				fmt.Printf("[DEBUG] Cluster already bootstrapped\n")
+				logger.L().Debug(" Cluster already bootstrapped")
 			}
 		}
 
@@ -132,7 +136,7 @@ func NewRaftNode(config *NodeConfig) (*RaftNode, error) {
 		time.Sleep(1000 * time.Millisecond)
 	}
 
-	fmt.Printf("[DEBUG] Creating new Raft instance\n")
+	logger.L().Debug(" Creating new Raft instance")
 	r, err := raft.NewRaft(raftConfig, fsm, boltStore, boltStore, snapshotStore, transport)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raft: %v", err)
@@ -141,20 +145,24 @@ func NewRaftNode(config *NodeConfig) (*RaftNode, error) {
 	node := &RaftNode{raft: r, config: config}
 
 	if config.Bootstrap {
-		fmt.Printf("[DEBUG] Waiting for leader election in bootstrap mode\n")
+		logger.L().Debug(" Waiting for leader election in bootstrap mode\n")
 		maxAttempts := 100
 		for i := 0; i < maxAttempts; i++ {
 			state := r.State()
 			leader := r.Leader()
-			fmt.Printf("[DEBUG] Attempt %d - State: %v, Leader: %v\n", i+1, state, leader)
+			logger.L().Debug("attempts",
+				zap.Int("Attempt", i+1),
+				zap.Any("State", state),
+				zap.Any("leader", leader),
+			)
 
 			if state == raft.Leader {
-				fmt.Printf("[DEBUG] Node became leader\n")
+				logger.L().Debug(" Node became leader\n")
 				return node, nil
 			}
 
 			if state == raft.Follower && leader != "" {
-				fmt.Printf("[DEBUG] Found leader: %v\n", leader)
+				logger.L().Debug("Found leader", zap.Any("leader", leader))
 				return node, nil
 			}
 

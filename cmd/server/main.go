@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -11,6 +9,8 @@ import (
 	"github.com/jaeyoung0509/go-store/internal/api"
 	"github.com/jaeyoung0509/go-store/internal/api/pb"
 	"github.com/jaeyoung0509/go-store/internal/raft"
+	logger "github.com/jaeyoung0509/go-store/pkg/log"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -22,11 +22,22 @@ func main() {
 	grpcAddr := os.Getenv("GRPC_ADDR")
 	dataDir := os.Getenv("RAFT_DATA_DIR")
 	bootstrap := os.Getenv("BOOTSTRAP") == "true"
+	debug := os.Getenv("DEBUG") == "true"
+
+	// Setup Logs
+	logger.InitLogger(debug)
+	defer logger.Sync()
+
+	logger.L().Info("Starting go-store",
+		zap.String("nodeId", nodeID),
+		zap.String("grpcAddr", grpcAddr),
+		zap.String("raftAddr", raftAddr),
+		zap.Bool("bootstrap", bootstrap),
+	)
 
 	if nodeID == "" || grpcAddr == "" {
-		log.Fatal("Please provide both -id and -addr flags")
+		logger.L().Fatal("please provide both -id and -addr flags")
 	}
-	fmt.Printf("addr config, nodeID:%s, grpcAddr:%s, raftAddr:%s, bootStrap:%t", nodeID, grpcAddr, raftAddr, bootstrap)
 
 	// Create and start Raft node
 	config := raft.NewNodeConfig(nodeID, raftAddr, dataDir)
@@ -34,14 +45,17 @@ func main() {
 
 	node, err := raft.NewRaftNode(config)
 	if err != nil {
-		log.Fatalf("Failed to create Raft node: %v", err)
+		logger.L().Fatal("Failed to create Raft node",
+			zap.Error(err),
+		)
 	}
 
 	// Create and start API server
 	server := api.NewServer(node, apiAddr)
 	go func() {
 		if err := server.Start(); err != nil {
-			log.Fatalf("Failed to start API server: %v", err)
+			logger.L().Fatal("Failed to start API server",
+				zap.Error(err))
 		}
 	}()
 
@@ -49,14 +63,19 @@ func main() {
 	go func() {
 		ls, err := net.Listen("tcp", grpcAddr)
 		if err != nil {
-			log.Fatalf("Failed to listen on %s: %v", grpcAddr, err)
+			logger.L().Fatal("Failed to listen on",
+				zap.String("port", grpcAddr),
+				zap.Error(err),
+			)
 		}
 		grpcServer := grpc.NewServer()
 		pb.RegisterRaftServiceServer(grpcServer, api.NewRaftServer(node))
 
-		log.Printf("gRPC server listening on %s", grpcAddr)
+		logger.L().Info("gRPC server listening on",
+			zap.String("grpcAddr", grpcAddr))
 		if err := grpcServer.Serve(ls); err != nil {
-			log.Fatalf("Failed to serve gRPC: %v", err)
+			logger.L().Fatal("Failed to serve grpc",
+				zap.Error(err))
 		}
 	}()
 
@@ -67,9 +86,13 @@ func main() {
 
 	// Graceful shutdown
 	if err := server.Stop(); err != nil {
-		log.Printf("Error stopping API server: %v", err)
+		logger.L().Info("Error stopping API server",
+			zap.Error(err),
+		)
 	}
 	if err := node.Stop(); err != nil {
-		log.Printf("Error stopping Raft node: %v", err)
+		logger.L().Info("Error stopping Raft node",
+			zap.Error(err),
+		)
 	}
 }
