@@ -4,11 +4,16 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	logger "github.com/jaeyoung0509/go-store/pkg/log"
 )
 
 func TestRaftNode(t *testing.T) {
 	t.Log("[TEST] Starting RaftNode unit tests")
 	tmpDir := t.TempDir()
+
+	// Set logger
+	logger.InitLogger(true)
 
 	// Create test configuration
 	config := NewNodeConfig("test1", "127.0.0.1:9001", tmpDir)
