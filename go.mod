@@ -7,7 +7,6 @@ require (
 	github.com/docker/go-connections v0.5.0
 	github.com/hashicorp/raft v1.7.3
 	github.com/stretchr/testify v1.10.0
-	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.etcd.io/bbolt v1.4.0
 	go.uber.org/zap v1.19.0
 	google.golang.org/grpc v1.59.0
@@ -138,7 +137,6 @@ require (
 	github.com/tonistiigi/fsutil v0.0.0-20230825212630-f09800878302 // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea // indirect
 	github.com/tonistiigi/vt100 v0.0.0-20230623042737-f9a4f7ef6531 // indirect
-	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
