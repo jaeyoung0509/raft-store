@@ -2,9 +2,6 @@
     "cSpell.words": [
         "bbolt"
     ],
-    "gopls.buildFlags": [
-        "-tags=integration"
-    ],
     "go.testTimeout": "100s",
     "makefile.configureOnOpen": false
 }
