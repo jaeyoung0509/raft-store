@@ -3,10 +3,15 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
+	hashiraft "github.com/hashicorp/raft"
 	pb "github.com/jaeyoung0509/go-store/internal/api/pb"
 	"github.com/jaeyoung0509/go-store/internal/raft"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // RaftServer implements the gRPC service interface for Raft operations
@@ -84,5 +89,29 @@ func (s *RaftServer) ApplyCommand(ctx context.Context, req *pb.CommandRequest) (
 
 	return &pb.CommandResponse{
 		Result: "OK",
+	}, nil
+}
+
+// GetValue returns the current value for a key using a linearizable read.
+func (s *RaftServer) GetValue(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
+	if req.GetKey() == "" {
+		return nil, status.Error(codes.InvalidArgument, "key is required")
+	}
+
+	value, found, err := s.raftNode.Get(ctx, req.GetKey())
+	if err != nil {
+		if errors.Is(err, hashiraft.ErrNotLeader) {
+			leader := s.raftNode.Leader()
+			return nil, status.Error(codes.Unavailable, fmt.Sprintf("not leader (leader: %s)", leader))
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, status.FromContextError(err).Err()
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &pb.GetResponse{
+		Value: value,
+		Found: found,
 	}, nil
 }

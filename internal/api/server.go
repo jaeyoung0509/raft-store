@@ -1,21 +1,25 @@
 package api
 
 import (
+	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
-	"github.com/jaeyoung0509/go-store/internal/raft"
+	"github.com/hashicorp/raft"
+	raftstore "github.com/jaeyoung0509/go-store/internal/raft"
 )
 
 // Server implements the HTTP API interface for Raft operations
 type Server struct {
-	raftNode raft.Node
+	raftNode raftstore.Node
 	addr     string
 }
 
 // NewServer creates a new HTTP API server instance
-func NewServer(node raft.Node, addr string) *Server {
+func NewServer(node raftstore.Node, addr string) *Server {
 	return &Server{
 		raftNode: node,
 		addr:     addr,
@@ -56,29 +60,41 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd := raft.Command{
-		Type:    "GET",
-		Key:     key,
-		Timeout: 5 * time.Second,
+	if !s.raftNode.IsLeader() {
+		s.writeNotLeader(w)
+		return
 	}
 
-	data, err := json.Marshal(cmd)
+	value, found, err := s.raftNode.Get(r.Context(), key)
 	if err != nil {
+		if errors.Is(err, raft.ErrNotLeader) {
+			s.writeNotLeader(w)
+			return
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			http.Error(w, err.Error(), http.StatusGatewayTimeout)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err := s.raftNode.Apply(data, 5*time.Second); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	resp := getResponse{
+		Key:      key,
+		Found:    found,
+		Encoding: "base64",
+	}
+	if found {
+		resp.Value = base64.StdEncoding.EncodeToString(value)
+		s.writeJSON(w, http.StatusOK, resp)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
+	s.writeJSON(w, http.StatusNotFound, resp)
 }
 
 // handlePut processes PUT requests for key-value updates
 func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
-	var cmd raft.Command
+	var cmd raftstore.Command
 	if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -109,7 +125,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd := raft.Command{
+	cmd := raftstore.Command{
 		Type:    "DELETE",
 		Key:     key,
 		Timeout: 5 * time.Second,
@@ -153,6 +169,31 @@ func (s *Server) handleGetCluster(w http.ResponseWriter, _ *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(config)
+}
+
+type getResponse struct {
+	Key      string `json:"key"`
+	Value    string `json:"value,omitempty"`
+	Found    bool   `json:"found"`
+	Encoding string `json:"encoding,omitempty"`
+}
+
+type errorResponse struct {
+	Error  string `json:"error"`
+	Leader string `json:"leader,omitempty"`
+}
+
+func (s *Server) writeNotLeader(w http.ResponseWriter) {
+	s.writeJSON(w, http.StatusServiceUnavailable, errorResponse{
+		Error:  "not leader",
+		Leader: s.raftNode.Leader(),
+	})
+}
+
+func (s *Server) writeJSON(w http.ResponseWriter, status int, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
 }
 
 // handleAddPeer processes requests to add new cluster members
