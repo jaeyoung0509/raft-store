@@ -67,3 +67,7 @@ To run unit tests:
 go test ./...
 ```
 
+To run integration tests (Docker required):
+```bash
+go test -tags=integration ./test/integration
+```

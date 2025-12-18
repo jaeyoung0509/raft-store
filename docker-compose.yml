@@ -9,11 +9,13 @@ services:
       - "34001:9090"
       - "12001:12000"
     user: nobody
-    env_file:
-      - .env
     environment:
       NODE_ID: node1
       RAFT_ADDR: node1:12000
+      API_ADDR: ${API_ADDR:-:8080}
+      GRPC_ADDR: ${GRPC_ADDR:-:9090}
+      RAFT_DATA_DIR: ${RAFT_DATA_DIR:-/data}
+      DEBUG: ${DEBUG:-false}
       BOOTSTRAP: "true"
     volumes:
       - "/tmp/raft-data/node1:/data"
@@ -34,11 +36,13 @@ services:
       - "34002:9090"
       - "12002:12000"
     user: nobody
-    env_file:
-      - .env
     environment:
       NODE_ID: node2
       RAFT_ADDR: node2:12000
+      API_ADDR: ${API_ADDR:-:8080}
+      GRPC_ADDR: ${GRPC_ADDR:-:9090}
+      RAFT_DATA_DIR: ${RAFT_DATA_DIR:-/data}
+      DEBUG: ${DEBUG:-false}
       BOOTSTRAP: "false"
     volumes:
       - "/tmp/raft-data/node2:/data"
@@ -59,11 +63,13 @@ services:
       - "34003:9090"
       - "12003:12000"
     user: nobody
-    env_file:
-      - .env
     environment:
       NODE_ID: node3
       RAFT_ADDR: node3:12000
+      API_ADDR: ${API_ADDR:-:8080}
+      GRPC_ADDR: ${GRPC_ADDR:-:9090}
+      RAFT_DATA_DIR: ${RAFT_DATA_DIR:-/data}
+      DEBUG: ${DEBUG:-false}
       BOOTSTRAP: "false"
     volumes:
       - "/tmp/raft-data/node3:/data"
