@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 // Package util provides testing utilities for Raft cluster tests
 package util
 

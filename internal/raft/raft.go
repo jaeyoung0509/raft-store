@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -17,6 +18,7 @@ import (
 type RaftNode struct {
 	raft   *raft.Raft
 	config *NodeConfig
+	fsm    *fsm
 }
 
 // NewRaftNode creates and initializes a new Raft node with the given configuration
@@ -142,7 +144,7 @@ func NewRaftNode(config *NodeConfig) (*RaftNode, error) {
 		return nil, fmt.Errorf("failed to create raft: %v", err)
 	}
 
-	node := &RaftNode{raft: r, config: config}
+	node := &RaftNode{raft: r, config: config, fsm: fsm}
 
 	if config.Bootstrap {
 		logger.L().Debug(" Waiting for leader election in bootstrap mode\n")
@@ -211,6 +213,38 @@ func (n *RaftNode) RemovePeer(peerID string) error {
 func (n *RaftNode) Apply(data []byte, timeout time.Duration) error {
 	f := n.raft.Apply(data, timeout)
 	return f.Error()
+}
+
+// Get performs a linearizable read by waiting for a barrier before reading FSM state.
+func (n *RaftNode) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	if n.raft == nil || n.fsm == nil {
+		return nil, false, fmt.Errorf("raft node not initialized")
+	}
+	if !n.IsLeader() {
+		return nil, false, raft.ErrNotLeader
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+
+	timeout := 5 * time.Second
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout = time.Until(deadline)
+		if timeout <= 0 {
+			return nil, false, context.DeadlineExceeded
+		}
+	}
+
+	// Barrier ensures all prior log entries are applied before the read.
+	if err := n.raft.Barrier(timeout).Error(); err != nil {
+		return nil, false, err
+	}
+
+	value, found := n.fsm.Get(key)
+	return value, found, nil
 }
 
 // GetConfiguration retrieves the current cluster configuration
