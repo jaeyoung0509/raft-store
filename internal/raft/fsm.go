@@ -3,6 +3,7 @@ package raft
 import (
 	"encoding/json"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/raft"
@@ -18,6 +19,7 @@ type Command struct {
 
 // fsm implements the raft.FSM interface for state machine replication
 type fsm struct {
+	mu   sync.RWMutex
 	data map[string][]byte
 }
 
@@ -37,10 +39,14 @@ func (f *fsm) Apply(log *raft.Log) interface{} {
 
 	switch cmd.Type {
 	case "SET":
-		f.data[cmd.Key] = cmd.Value
+		f.mu.Lock()
+		f.data[cmd.Key] = append([]byte(nil), cmd.Value...)
+		f.mu.Unlock()
 		return nil
 	case "DELETE":
+		f.mu.Lock()
 		delete(f.data, cmd.Key)
+		f.mu.Unlock()
 		return nil
 	default:
 		return ErrUnknownCommand
@@ -49,13 +55,29 @@ func (f *fsm) Apply(log *raft.Log) interface{} {
 
 // Snapshot returns a snapshot of the current state machine
 func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
-	return &fsmSnapshot{data: f.data}, nil
+	f.mu.RLock()
+	snapshot := make(map[string][]byte, len(f.data))
+	for key, value := range f.data {
+		snapshot[key] = append([]byte(nil), value...)
+	}
+	f.mu.RUnlock()
+
+	return &fsmSnapshot{data: snapshot}, nil
 }
 
 // Restore restores the state machine from a snapshot
 func (f *fsm) Restore(rc io.ReadCloser) error {
-	f.data = make(map[string][]byte)
-	return json.NewDecoder(rc).Decode(&f.data)
+	defer rc.Close()
+
+	data := make(map[string][]byte)
+	if err := json.NewDecoder(rc).Decode(&data); err != nil {
+		return err
+	}
+
+	f.mu.Lock()
+	f.data = data
+	f.mu.Unlock()
+	return nil
 }
 
 // fsmSnapshot implements the FSMSnapshot interface for state persistence
@@ -68,3 +90,14 @@ func (f *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 }
 
 func (f *fsmSnapshot) Release() {}
+
+// Get returns a copy of the value for a key.
+func (f *fsm) Get(key string) ([]byte, bool) {
+	f.mu.RLock()
+	value, ok := f.data[key]
+	f.mu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	return append([]byte(nil), value...), true
+}

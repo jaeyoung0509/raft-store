@@ -10,6 +10,7 @@ service RaftService {
     rpc RemovePeer (PeerID) returns (PeerResponse);
     rpc GetCluster (Empty) returns (ClusterConfig);
     rpc ApplyCommand (CommandRequest) returns (CommandResponse);
+    rpc GetValue (GetRequest) returns (GetResponse);
 
 }
 
@@ -48,4 +49,13 @@ message CommandRequest {
 
 message CommandResponse {
     string result = 1;
+}
+
+message GetRequest {
+    string key = 1;
+}
+
+message GetResponse {
+    bytes value = 1;
+    bool found = 2;
 }

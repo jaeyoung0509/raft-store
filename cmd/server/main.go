@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"os/signal"
@@ -26,7 +27,11 @@ func main() {
 
 	// Setup Logs
 	logger.InitLogger(debug)
-	defer logger.Sync()
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "logger sync failed: %v\n", err)
+		}
+	}()
 
 	logger.L().Info("Starting go-store",
 		zap.String("nodeId", nodeID),

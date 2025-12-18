@@ -1,6 +1,9 @@
 package logger
 
 import (
+	"fmt"
+	"os"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -19,7 +22,8 @@ func InitLogger(debug bool) {
 	var err error
 	logger, err = cfg.Build()
 	if err != nil {
-
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		logger = zap.NewNop()
 	}
 }
 
