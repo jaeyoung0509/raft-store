@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 // Package util provides testing utilities for Raft cluster tests
 package util
 
@@ -39,10 +42,11 @@ type TestCluster struct {
 // SetupTestCluster initializes a test Raft cluster using Docker Compose
 func SetupTestCluster(t *testing.T, mode TestMode) (*TestCluster, error) {
 	t.Helper()
-	// Setup data directory
-	os.Setenv("RAFT_DATA_DIR", "/tmp/raft-data")
-	t.Log("RAFT_DATA_DIR =", os.Getenv("RAFT_DATA_DIR"))
-	err := os.RemoveAll(os.Getenv("RAFT_DATA_DIR"))
+	// Setup data directory on host and ensure container data dir is deterministic.
+	hostDataDir := "/tmp/raft-data"
+	_ = os.Setenv("RAFT_DATA_DIR", "/data")
+	t.Log("RAFT_DATA_DIR (host) =", hostDataDir)
+	err := os.RemoveAll(hostDataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete data directory: %w", err)
 	}

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/raft"
-	"github.com/vmihailenco/msgpack/v5"
 )
 
 // Command represents an operation to be replicated through the Raft cluster
@@ -32,7 +31,7 @@ func newFSM() *fsm {
 // Apply handles incoming log entries and applies them to the state machine
 func (f *fsm) Apply(log *raft.Log) interface{} {
 	var cmd Command
-	if err := msgpack.Unmarshal(log.Data, &cmd); err != nil {
+	if err := json.Unmarshal(log.Data, &cmd); err != nil {
 		return err
 	}
 
