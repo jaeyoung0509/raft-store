@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -166,9 +167,7 @@ func (s *Server) handleGetCluster(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(config)
+	s.writeJSON(w, http.StatusOK, config)
 }
 
 type getResponse struct {
@@ -193,7 +192,9 @@ func (s *Server) writeNotLeader(w http.ResponseWriter) {
 func (s *Server) writeJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
 }
 
 // handleAddPeer processes requests to add new cluster members

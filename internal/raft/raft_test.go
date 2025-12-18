@@ -30,7 +30,9 @@ func TestRaftNode(t *testing.T) {
 	}
 	defer func() {
 		t.Log("[TEST] Performing test cleanup")
-		node.Shutdown()
+		if err := node.Shutdown(); err != nil {
+			t.Fatalf("[TEST] Failed to shutdown node: %v", err)
+		}
 	}()
 
 	// Verify initial cluster configuration
