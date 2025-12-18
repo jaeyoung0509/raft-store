@@ -50,6 +50,23 @@ func SetupTestCluster(t *testing.T, mode TestMode) (*TestCluster, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete data directory: %w", err)
 	}
+	if err := os.MkdirAll(hostDataDir, 0o777); err != nil {
+		return nil, fmt.Errorf("failed to create data directory: %w", err)
+	}
+	if err := os.Chmod(hostDataDir, 0o777); err != nil {
+		return nil, fmt.Errorf("failed to chmod data directory: %w", err)
+	}
+
+	services := []string{"node1", "node2", "node3"}
+	for _, service := range services {
+		nodeDir := filepath.Join(hostDataDir, service)
+		if err := os.MkdirAll(nodeDir, 0o777); err != nil {
+			return nil, fmt.Errorf("failed to create node directory %s: %w", nodeDir, err)
+		}
+		if err := os.Chmod(nodeDir, 0o777); err != nil {
+			return nil, fmt.Errorf("failed to chmod node directory %s: %w", nodeDir, err)
+		}
+	}
 
 	// Clean up existing containers
 	ctx := context.Background()
@@ -94,7 +111,6 @@ func SetupTestCluster(t *testing.T, mode TestMode) (*TestCluster, error) {
 	}
 
 	// Wait for containers to be ready
-	services := []string{"node1", "node2", "node3"}
 	for _, service := range services {
 		container, err := stack.ServiceContainer(ctx, service)
 		if err != nil {
