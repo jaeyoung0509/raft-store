@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"context"
 	"time"
 
 	"github.com/hashicorp/raft"
@@ -15,6 +16,7 @@ type Node interface {
 	AddPeer(peerID string, addr string) error
 	RemovePeer(peerID string) error
 	Apply(data []byte, timeout time.Duration) error
+	Get(ctx context.Context, key string) ([]byte, bool, error)
 	GetConfiguration() (*Configuration, error)
 	Shutdown() error
 }

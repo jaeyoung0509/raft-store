@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -90,5 +91,13 @@ func TestRaftNode(t *testing.T) {
 			t.Errorf("[TEST] Failed to apply command: %v", err)
 		}
 		t.Log("[TEST] Command applied successfully")
+
+		value, found, err := node.Get(context.Background(), "test-key")
+		if err != nil {
+			t.Fatalf("[TEST] Failed to read value: %v", err)
+		}
+		if !found || string(value) != "test-value" {
+			t.Fatalf("[TEST] Expected value %q, got %q (found=%v)", "test-value", string(value), found)
+		}
 	})
 }

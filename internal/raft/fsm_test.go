@@ -1,10 +1,10 @@
 package raft
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/hashicorp/raft"
-	"github.com/vmihailenco/msgpack/v5"
 )
 
 func TestFSM(t *testing.T) {
@@ -32,7 +32,7 @@ func TestFSM(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Logf("[TEST] Running case: %s", c.desc)
-		data, err := msgpack.Marshal(c.cmd)
+		data, err := json.Marshal(c.cmd)
 		if err != nil {
 			t.Fatalf("[TEST] Failed to marshal command: %v", err)
 		}
@@ -40,14 +40,17 @@ func TestFSM(t *testing.T) {
 		if err := f.Apply(log); err != nil {
 			t.Fatalf("[TEST] Apply failed: %v", err)
 		}
-		if c.cmd.Type == "SET" {
+		switch c.cmd.Type {
+		case "SET":
 			if string(f.data[c.cmd.Key]) != string(c.cmd.Value) {
 				t.Fatalf("[TEST] Expected value '%s', got '%s'", c.cmd.Value, f.data[c.cmd.Key])
 			}
-		} else if c.cmd.Type == "DELETE" {
+		case "DELETE":
 			if _, exists := f.data[c.cmd.Key]; exists {
 				t.Fatalf("[TEST] Expected key '%s' to be deleted, but it still exists", c.cmd.Key)
 			}
+		default:
+			t.Fatalf("[TEST] Unexpected command type: %s", c.cmd.Type)
 		}
 	}
 }
