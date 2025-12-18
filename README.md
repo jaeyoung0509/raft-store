@@ -53,7 +53,7 @@
         ```bash
         grpcurl -plaintext -d '{"type": "SET", "key": "mykey", "value": "myvalue"}' localhost:34001 api.RaftService/ApplyCommand
         ```
-        _Note: There's currently no read API; data is applied via Raft log and stored in memory._
+        _Note: Reads are available via HTTP `GET /key?key=...` or gRPC `GetValue`._
 
 5. **Stop the cluster and clean data:**
     ```bash
@@ -66,5 +66,4 @@ To run unit tests:
 ```bash
 go test ./...
 ```
-
 
