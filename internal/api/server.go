@@ -68,15 +68,7 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 
 	value, found, err := s.raftNode.Get(r.Context(), key)
 	if err != nil {
-		if errors.Is(err, raft.ErrNotLeader) {
-			s.writeNotLeader(w)
-			return
-		}
-		if errors.Is(err, context.DeadlineExceeded) {
-			http.Error(w, err.Error(), http.StatusGatewayTimeout)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.writeRaftError(w, err)
 		return
 	}
 
@@ -111,7 +103,7 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.raftNode.Apply(data, 5*time.Second); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.writeRaftError(w, err)
 		return
 	}
 
@@ -139,7 +131,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.raftNode.Apply(data, 5*time.Second); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.writeRaftError(w, err)
 		return
 	}
 
@@ -187,6 +179,19 @@ func (s *Server) writeNotLeader(w http.ResponseWriter) {
 		Error:  "not leader",
 		Leader: s.raftNode.Leader(),
 	})
+}
+
+func (s *Server) writeRaftError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, raft.ErrNotLeader):
+		s.writeNotLeader(w)
+	case errors.Is(err, raftstore.ErrUnknownCommand):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, status int, payload interface{}) {

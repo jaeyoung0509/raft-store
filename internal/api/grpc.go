@@ -84,7 +84,7 @@ func (s *RaftServer) ApplyCommand(ctx context.Context, req *pb.CommandRequest) (
 	}
 
 	if err := s.raftNode.Apply(data, cmd.Timeout); err != nil {
-		return nil, err
+		return nil, s.mapRaftError(err)
 	}
 
 	return &pb.CommandResponse{
@@ -100,18 +100,28 @@ func (s *RaftServer) GetValue(ctx context.Context, req *pb.GetRequest) (*pb.GetR
 
 	value, found, err := s.raftNode.Get(ctx, req.GetKey())
 	if err != nil {
-		if errors.Is(err, hashiraft.ErrNotLeader) {
-			leader := s.raftNode.Leader()
-			return nil, status.Error(codes.Unavailable, fmt.Sprintf("not leader (leader: %s)", leader))
-		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return nil, status.FromContextError(err).Err()
-		}
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, s.mapRaftError(err)
 	}
 
 	return &pb.GetResponse{
 		Value: value,
 		Found: found,
 	}, nil
+}
+
+func (s *RaftServer) mapRaftError(err error) error {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, hashiraft.ErrNotLeader):
+		leader := s.raftNode.Leader()
+		return status.Error(codes.Unavailable, fmt.Sprintf("not leader (leader: %s)", leader))
+	case errors.Is(err, raft.ErrUnknownCommand):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
+		return status.FromContextError(err).Err()
+	default:
+		return status.Error(codes.Internal, err.Error())
+	}
 }
