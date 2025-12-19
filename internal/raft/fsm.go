@@ -56,6 +56,7 @@ func (f *fsm) Apply(log *raft.Log) interface{} {
 // Snapshot returns a snapshot of the current state machine
 func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
 	f.mu.RLock()
+	// Copy the map and values to avoid sharing mutable state with concurrent writers.
 	snapshot := make(map[string][]byte, len(f.data))
 	for key, value := range f.data {
 		snapshot[key] = append([]byte(nil), value...)
@@ -86,7 +87,15 @@ type fsmSnapshot struct {
 }
 
 func (f *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
-	return json.NewEncoder(sink).Encode(f.data)
+	if err := json.NewEncoder(sink).Encode(f.data); err != nil {
+		_ = sink.Cancel()
+		return err
+	}
+	if err := sink.Close(); err != nil {
+		_ = sink.Cancel()
+		return err
+	}
+	return nil
 }
 
 func (f *fsmSnapshot) Release() {}

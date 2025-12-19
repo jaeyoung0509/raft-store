@@ -3,6 +3,7 @@ package raft
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -100,6 +101,22 @@ func TestRaftNode(t *testing.T) {
 		}
 		if !found || string(value) != "test-value" {
 			t.Fatalf("[TEST] Expected value %q, got %q (found=%v)", "test-value", string(value), found)
+		}
+	})
+
+	t.Run("Apply Unknown Command", func(t *testing.T) {
+		cmd := Command{
+			Type: "NOPE",
+			Key:  "bad-key",
+		}
+		data, err := json.Marshal(cmd)
+		if err != nil {
+			t.Fatalf("[TEST] Failed to marshal command: %v", err)
+		}
+
+		err = node.Apply(data, 500*time.Millisecond)
+		if !errors.Is(err, ErrUnknownCommand) {
+			t.Fatalf("[TEST] Expected ErrUnknownCommand, got %v", err)
 		}
 	})
 }

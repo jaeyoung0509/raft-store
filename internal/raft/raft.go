@@ -212,7 +212,16 @@ func (n *RaftNode) RemovePeer(peerID string) error {
 // Apply submits a new command to be applied to the cluster state machine
 func (n *RaftNode) Apply(data []byte, timeout time.Duration) error {
 	f := n.raft.Apply(data, timeout)
-	return f.Error()
+	if err := f.Error(); err != nil {
+		return err
+	}
+	// FSM.Apply can return an error via Response even when the raft future succeeds.
+	if resp := f.Response(); resp != nil {
+		if err, ok := resp.(error); ok {
+			return err
+		}
+	}
+	return nil
 }
 
 // Get performs a linearizable read by waiting for a barrier before reading FSM state.

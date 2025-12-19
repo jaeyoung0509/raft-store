@@ -1,7 +1,9 @@
 package raft
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/hashicorp/raft"
@@ -52,5 +54,81 @@ func TestFSM(t *testing.T) {
 		default:
 			t.Fatalf("[TEST] Unexpected command type: %s", c.cmd.Type)
 		}
+	}
+}
+
+type mockSnapshotSink struct {
+	bytes.Buffer
+	closed   bool
+	canceled bool
+	writeErr error
+	closeErr error
+}
+
+func (m *mockSnapshotSink) Write(p []byte) (int, error) {
+	if m.writeErr != nil {
+		return 0, m.writeErr
+	}
+	return m.Buffer.Write(p)
+}
+
+func (m *mockSnapshotSink) Close() error {
+	m.closed = true
+	return m.closeErr
+}
+
+func (m *mockSnapshotSink) Cancel() error {
+	m.canceled = true
+	return nil
+}
+
+func (m *mockSnapshotSink) ID() string {
+	return "mock"
+}
+
+func TestFSMSnapshotPersistClosesSink(t *testing.T) {
+	f := newFSM()
+	f.mu.Lock()
+	f.data["key"] = []byte("value")
+	f.mu.Unlock()
+
+	snapshot, err := f.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot failed: %v", err)
+	}
+
+	sink := &mockSnapshotSink{}
+	if err := snapshot.Persist(sink); err != nil {
+		t.Fatalf("Persist failed: %v", err)
+	}
+	if !sink.closed {
+		t.Fatalf("expected sink to be closed")
+	}
+	if sink.canceled {
+		t.Fatalf("did not expect sink to be canceled")
+	}
+}
+
+func TestFSMSnapshotPersistCancelsOnError(t *testing.T) {
+	f := newFSM()
+	f.mu.Lock()
+	f.data["key"] = []byte("value")
+	f.mu.Unlock()
+
+	snapshot, err := f.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot failed: %v", err)
+	}
+
+	writeErr := errors.New("write failed")
+	sink := &mockSnapshotSink{writeErr: writeErr}
+	if err := snapshot.Persist(sink); err == nil {
+		t.Fatalf("expected persist error")
+	}
+	if !sink.canceled {
+		t.Fatalf("expected sink to be canceled")
+	}
+	if sink.closed {
+		t.Fatalf("did not expect sink to be closed")
 	}
 }
