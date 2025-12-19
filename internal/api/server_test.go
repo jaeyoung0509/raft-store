@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	hashiraft "github.com/hashicorp/raft"
 	"github.com/jaeyoung0509/go-store/internal/raft"
 )
 
@@ -77,6 +78,9 @@ func TestServer(t *testing.T) {
 		method     string
 		path       string
 		body       interface{}
+		leader     *bool
+		applyErr   error
+		getErr     error
 		wantStatus int
 		assertBody func(t *testing.T, rec *httptest.ResponseRecorder)
 	}{
@@ -92,6 +96,46 @@ func TestServer(t *testing.T) {
 				Value: "dGVzdC12YWx1ZQ==", // base64 encoded "test-value"
 			},
 			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "PUT /key - unknown command",
+			method: "PUT",
+			path:   "/key",
+			body: struct {
+				Key   string `json:"key"`
+				Value string `json:"value"`
+			}{
+				Key:   "test-key",
+				Value: "dGVzdC12YWx1ZQ==",
+			},
+			applyErr:   raft.ErrUnknownCommand,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:   "PUT /key - not leader",
+			method: "PUT",
+			path:   "/key",
+			body: struct {
+				Key   string `json:"key"`
+				Value string `json:"value"`
+			}{
+				Key:   "test-key",
+				Value: "dGVzdC12YWx1ZQ==",
+			},
+			applyErr:   hashiraft.ErrNotLeader,
+			wantStatus: http.StatusServiceUnavailable,
+			assertBody: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var resp struct {
+					Error  string `json:"error"`
+					Leader string `json:"leader"`
+				}
+				if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+					t.Fatalf("Failed to decode response: %v", err)
+				}
+				if resp.Error != "not leader" || resp.Leader == "" {
+					t.Fatalf("Unexpected response: %+v", resp)
+				}
+			},
 		},
 		{
 			name:       "GET /key - success",
@@ -136,6 +180,7 @@ func TestServer(t *testing.T) {
 			name:       "GET /key - not leader",
 			method:     "GET",
 			path:       "/key?key=test_key",
+			leader:     boolPtr(false),
 			wantStatus: http.StatusServiceUnavailable,
 			assertBody: func(t *testing.T, rec *httptest.ResponseRecorder) {
 				var resp struct {
@@ -169,10 +214,17 @@ func TestServer(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 
-			if tt.name == "GET /key - not leader" {
-				mockNode.isLeader = false
-			} else {
-				mockNode.isLeader = true
+			mockNode.isLeader = true
+			mockNode.applyErr = nil
+			mockNode.getErr = nil
+			if tt.leader != nil {
+				mockNode.isLeader = *tt.leader
+			}
+			if tt.applyErr != nil {
+				mockNode.applyErr = tt.applyErr
+			}
+			if tt.getErr != nil {
+				mockNode.getErr = tt.getErr
 			}
 
 			// Use the mux to handle the request
@@ -187,4 +239,8 @@ func TestServer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
